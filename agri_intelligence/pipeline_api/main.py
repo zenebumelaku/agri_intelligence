@@ -1,0 +1,174 @@
+# pipeline_api/main.py
+"""
+FastAPI demo API — live Kafka + HDFS view for the Agri Intelligence UI.
+
+Endpoints
+---------
+GET /api/health                 Kafka + HDFS health check
+GET /api/pipeline/overview      Topic names, batch file count, status
+GET /api/events/stream          SSE stream of live Kafka events
+"""
+
+import sys
+import os
+import json
+import asyncio
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+# pyrefly: ignore [missing-import]
+from fastapi import FastAPI
+# pyrefly: ignore [missing-import]
+from fastapi.middleware.cors import CORSMiddleware
+# pyrefly: ignore [missing-import]
+from fastapi.responses import StreamingResponse
+
+from pipeline_api.kafka_client import check_kafka_health, make_consumer, poll_event
+from pipeline_api.hdfs_client import check_hdfs_health, get_batch_count, get_dir_size_bytes
+
+from config.kafka_config import (
+    WEATHER_TOPIC,
+    MARKET_TOPIC,
+    CROP_TOPIC,
+    PRODUCTION_TOPIC,
+    KAFKA_BOOTSTRAP_SERVERS,
+)
+from config.hdfs_config import HDFS_RAW_DATA_DIR
+
+
+
+# APP
+
+
+app = FastAPI(
+    title="Agri Intelligence Pipeline API",
+    description="Live Kafka + HDFS view for the agricultural data pipeline.",
+    version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+
+
+# HEALTH
+
+
+@app.get("/api/health")
+def health():
+    """
+    Return Kafka and HDFS health status.
+
+    Never raises — reports up/down instead.
+    """
+
+    kafka = check_kafka_health()
+    hdfs = check_hdfs_health()
+
+    return {
+        "kafka": {
+            "up": kafka["up"],
+            "bootstrap_servers": KAFKA_BOOTSTRAP_SERVERS,
+            "topics_found": kafka["topics"],
+            "error": kafka["error"],
+        },
+        "hdfs": {
+            "up": hdfs["up"],
+            "raw_dir": hdfs["raw_dir"],
+            "error": hdfs["error"],
+        },
+    }
+
+
+
+# PIPELINE OVERVIEW
+
+
+@app.get("/api/pipeline/overview")
+def pipeline_overview():
+    """
+    Return topic names, HDFS batch file count, and service status.
+
+    Never raises — reports empty results if services are down.
+    """
+
+    kafka = check_kafka_health()
+    hdfs = check_hdfs_health()
+    batch_count = get_batch_count() if hdfs["up"] else 0
+    total_bytes = get_dir_size_bytes() if hdfs["up"] else 0
+
+    return {
+        "kafka": {
+            "up": kafka["up"],
+            "topics": {
+                "weather": WEATHER_TOPIC,
+                "market": MARKET_TOPIC,
+                "crop": CROP_TOPIC,
+                "production": PRODUCTION_TOPIC,
+            },
+        },
+        "hdfs": {
+            "up": hdfs["up"],
+            "raw_dir": HDFS_RAW_DATA_DIR,
+            "batch_files": batch_count,
+            "total_bytes": total_bytes,
+            "estimated_events": total_bytes // 215 if total_bytes > 0 else 0
+        },
+    }
+
+
+
+# SSE EVENT STREAM
+
+
+@app.get("/api/events/stream")
+async def events_stream():
+    """
+    Server-Sent Events stream of live Kafka agricultural events.
+
+    Each SSE message is a JSON-encoded agricultural event matching
+    the schema defined in data_ingestion/event_schemas.py.
+
+    If Kafka is unavailable the stream stays open and sends a
+    keep-alive comment every 5 seconds so the client can detect
+    the disconnected state.
+    """
+
+    async def generator():
+        consumer = await asyncio.to_thread(make_consumer)
+        kafka_up = consumer is not None
+
+        try:
+            if not kafka_up:
+                # Notify client Kafka is down, then keep-alive
+                yield f"data: {json.dumps({'error': 'kafka_unavailable'})}\n\n"
+
+            while True:
+                if kafka_up:
+                    event = await asyncio.to_thread(poll_event, consumer)
+                    if event:
+                        yield f"data: {json.dumps(event)}\n\n"
+                    else:
+                        # No message yet — yield keep-alive comment
+                        yield ": keep-alive\n\n"
+                        await asyncio.sleep(0.2)
+                else:
+                    yield ": keep-alive\n\n"
+                    await asyncio.sleep(5)
+        finally:
+            if consumer:
+                consumer.close()
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
