@@ -17,6 +17,7 @@ AgriSense is a real-time agricultural data platform that brings together weather
 | Streaming | Apache Kafka topics for weather, market, crop-risk, and production events |
 | Batch storage | Hadoop HDFS stores event batches as JSON Lines files |
 | Analytics | Python regional summaries, risk heuristics, yield proxy, and crop suitability ranking |
+| ML notebook | Scikit-learn Isolation Forest and Random Forest classifier/regressor experiments |
 | Data sources | Open-Meteo weather; NASA POWER agro-climate data; baseline ETB market prices |
 | UI verification | Playwright end-to-end browser tests |
 
@@ -64,7 +65,18 @@ AgriSense demonstrates the data-to-decision flow while making the current model'
 4. **Personalized crop suitability:** scores five Ethiopian crops using broad crop-season fit (35%), soil fit (35%), and water fit (30%). A score is a relative rule-based suitability indicator, not a probability of success or yield.
 5. **Explainability:** recommendation reasons, limitations, and missing information are returned with the score instead of presenting an unexplained number.
 
-These are transparent, deterministic analytics and heuristics—not a locally validated or fitted machine-learning model. The project does not yet have labelled multi-year farm-level yield data, soil tests, local crop trial data, or validated climate/market history to train and evaluate a credible predictive model. Region and farm size are captured by the crop planner but are not included in its suitability score because the project currently lacks validated regional response and farm-economics data. Treat outputs as planning demonstrations and consult local agronomists before making planting or investment decisions.
+### Trained-model experiments
+
+The project also includes a separate scikit-learn ML workflow in [`Agri_Intelligence_ML.ipynb`](Agri_Intelligence_ML.ipynb). It demonstrates:
+
+- **Isolation Forest** anomaly detection for unusual agricultural observations.
+- **Random Forest classification** for low, medium, and high crop-risk categories.
+- **Random Forest regression** for indicative yield per hectare, with evaluation metrics and feature-importance inspection.
+- Saving and reloading model artifacts for a basic inference demonstration.
+
+The notebook uses a synthetic classroom/offline dataset by default and includes an optional path to load historical HDFS data. It shows how the Kafka-to-HDFS big-data pipeline can supply features for model training and analysis. The notebook experiments are **not currently served by the dashboard API**; the running dashboard's risk, yield indicator, and crop-advisor scores are transparent heuristic analytics described above. This distinction avoids presenting the demo scores as predictions from a trained model.
+
+The notebook's synthetic-data results are for demonstrating the workflow, not evidence of real-world predictive performance. Credible deployment would require labelled multi-year farm-level yields, field soil tests, local crop trial data, careful temporal and regional holdout validation, baseline comparisons, and ongoing monitoring. Region and farm size are captured by the crop planner but are not included in its suitability score because the project currently lacks validated regional response and farm-economics data. Treat outputs as planning demonstrations and consult local agronomists before making planting or investment decisions.
 
 ### Data provenance
 
