@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAgriStream } from './hooks/useAgriStream'
 import WeatherChart from './components/WeatherChart'
 import MarketChart from './components/MarketChart'
@@ -18,6 +18,21 @@ const average = (items, accessor, fallback = 0) => {
 export default function App() {
   const { weather, market, cropRisk, production, connected, source, hdfsFiles, hdfsEvents, hdfsSize } = useAgriStream()
   const [selectedRegion, setSelectedRegion] = useState('All')
+  const [insights, setInsights] = useState(null)
+
+  useEffect(() => {
+    const fetchInsights = async () => {
+      try {
+        const res = await fetch('http://localhost:8001/api/ml/insights')
+        if (!res.ok) return
+        const data = await res.json()
+        setInsights(data)
+      } catch (error) {
+        console.warn('ML insights unavailable', error)
+      }
+    }
+    fetchInsights()
+  }, [])
 
   const filteredWeather = useMemo(() => {
     return selectedRegion === 'All' ? weather : weather.filter((item) => item.region === selectedRegion)
@@ -243,7 +258,51 @@ export default function App() {
           <ProductionChart data={filteredProduction} />
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Machine learning</p>
+                <h2 className="mt-2 text-lg font-semibold text-white">AI crop intelligence</h2>
+              </div>
+              {insights && (
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-300">
+                  {insights.overall_label}
+                </span>
+              )}
+            </div>
+
+            {insights ? (
+              <div className="space-y-3">
+                {insights.regions.slice(0, 3).map((region) => (
+                  <div key={region.region} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-white">{region.region}</p>
+                        <p className="text-xs text-slate-400">{region.alert}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Risk</p>
+                        <p className="text-lg font-semibold text-amber-300">{region.risk_score}%</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-800">
+                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500" style={{ width: `${Math.min(region.risk_score, 100)}%` }} />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Yield forecast: {region.yield_forecast_tons.toFixed(1)} t</span>
+                      <span>Confidence: {(region.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-4 text-sm text-slate-400">
+                Loading AI insights...
+              </div>
+            )}
+          </div>
+
           <EventFeed events={allEvents} />
         </div>
       </main>

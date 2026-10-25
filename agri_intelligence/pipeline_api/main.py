@@ -26,6 +26,8 @@ from fastapi.responses import StreamingResponse
 
 from pipeline_api.kafka_client import check_kafka_health, make_consumer, poll_event
 from pipeline_api.hdfs_client import check_hdfs_health, get_batch_count, get_dir_size_bytes
+from analytics.hdfs_data_loader import load_raw_events_from_hdfs
+from analytics.ml_insights import build_ml_insights
 
 from config.kafka_config import (
     WEATHER_TOPIC,
@@ -124,6 +126,29 @@ def pipeline_overview():
 
 
 # SSE EVENT STREAM
+
+
+@app.get("/api/ml/insights")
+def ml_insights():
+    """Return ML-style regional crop and risk intelligence."""
+    try:
+        events = load_raw_events_from_hdfs(HDFS_RAW_DATA_DIR)
+    except Exception:
+        events = []
+
+    return build_ml_insights(events)
+
+
+@app.get("/api/pipeline/summary")
+def pipeline_summary():
+    """Return a combined operational and predictive summary."""
+    overview = pipeline_overview()
+    insights = ml_insights()
+
+    return {
+        "pipeline": overview,
+        "ml": insights,
+    }
 
 
 @app.get("/api/events/stream")
