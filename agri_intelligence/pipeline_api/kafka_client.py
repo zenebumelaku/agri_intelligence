@@ -6,6 +6,8 @@ Returns up/down status safely so endpoints never crash
 when Kafka is unavailable.
 """
 
+from __future__ import annotations
+
 import sys
 import os
 import json

@@ -37,7 +37,19 @@ This version adds a more polished dashboard experience for the agricultural data
 - region filters for focusing on a specific state or sub-region
 - dashboard summary cards with operational KPIs
 - priority alert cards for pest risk, soil moisture, and price spikes
+- a crop planner that ranks teff, maize, wheat, sorghum, and coffee from farm conditions
+- explanations, per-crop limitations, missing-data notes, and saved assessment comparisons
 - improved visual styling and responsive layout for project presentations
+
+The crop planner uses a transparent heuristic, not a trained or locally validated yield model. Region and farm size are captured as context but do not affect the score because the project does not currently contain validated regional trial or farm-economics data. Its scores should be treated as planning guidance, not probabilities or guarantees.
+
+The backend accepts recommendations at `POST /api/ml/crop-recommendations`. Example:
+
+```bash
+curl -X POST http://localhost:8001/api/ml/crop-recommendations \
+  -H 'Content-Type: application/json' \
+  -d '{"region":"Amhara","season":"Meher","soil_type":"loamy","water_availability":"moderate","farm_size_ha":2.5}'
+```
 
 ## How to Run
 

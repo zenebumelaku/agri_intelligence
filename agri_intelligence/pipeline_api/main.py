@@ -18,16 +18,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # pyrefly: ignore [missing-import]
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
 from fastapi.responses import StreamingResponse
+# pyrefly: ignore [missing-import]
+from pydantic import BaseModel, Field
 
 from pipeline_api.kafka_client import check_kafka_health, make_consumer, poll_event
 from pipeline_api.hdfs_client import check_hdfs_health, get_batch_count, get_dir_size_bytes
 from analytics.hdfs_data_loader import load_raw_events_from_hdfs
 from analytics.ml_insights import build_ml_insights
+from analytics.crop_advisor import recommend_crops
 
 from config.kafka_config import (
     WEATHER_TOPIC,
@@ -52,7 +55,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -170,6 +173,29 @@ def recommendations():
         "actions": actions,
         "summary": f"Best-performing region is {best_region} based on the current predictive score." if best_region and best_region != 'N/A' else "No regional performance data available yet.",
     }
+
+
+class CropRecommendationRequest(BaseModel):
+    region: str = Field(min_length=1, max_length=40)
+    season: str = Field(min_length=1, max_length=20)
+    soil_type: str = Field(min_length=1, max_length=20)
+    water_availability: str = Field(min_length=1, max_length=20)
+    farm_size_ha: float = Field(gt=0, le=100000)
+
+
+@app.post("/api/ml/crop-recommendations")
+def crop_recommendations(request: CropRecommendationRequest):
+    """Rank supported crops for the supplied farm conditions."""
+    try:
+        return recommend_crops(
+            region=request.region,
+            season=request.season,
+            soil_type=request.soil_type,
+            water_availability=request.water_availability,
+            farm_size_ha=request.farm_size_ha,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/pipeline/summary")

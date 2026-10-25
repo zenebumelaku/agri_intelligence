@@ -6,6 +6,7 @@ import CropRiskChart from './components/CropRiskChart'
 import ProductionChart from './components/ProductionChart'
 import StatCard from './components/StatCard'
 import EventFeed from './components/EventFeed'
+import CropAdvisor from './components/CropAdvisor'
 
 const REGIONS = ['All', 'Amhara', 'Oromia', 'SNNPR', 'Tigray', 'Sidama']
 
@@ -187,6 +188,7 @@ export default function App() {
               <nav aria-label="Dashboard sections" className="order-2 flex items-center gap-1 sm:order-1">
                 <a href="#overview" className="rounded-lg px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/5 hover:text-white">Overview</a>
                 <a href="#analytics" className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-white/5 hover:text-white">Analytics</a>
+                <a href="#planner" className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-white/5 hover:text-white">Crop planner</a>
                 <a href="#intelligence" className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-white/5 hover:text-white">Intelligence</a>
               </nav>
 
@@ -322,6 +324,10 @@ export default function App() {
           <CropRiskChart data={filteredCropRisk} />
           <ProductionChart data={filteredProduction} />
           </div>
+        </section>
+
+        <section id="planner" className="scroll-mt-24">
+          <CropAdvisor />
         </section>
 
         <section id="intelligence" className="grid scroll-mt-24 grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
