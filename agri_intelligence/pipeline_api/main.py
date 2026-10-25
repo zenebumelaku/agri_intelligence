@@ -139,6 +139,39 @@ def ml_insights():
     return build_ml_insights(events)
 
 
+@app.get("/api/recommendations")
+def recommendations():
+    """Return actionable crop management recommendations."""
+    insights = ml_insights()
+    regions = insights.get("regions", [])
+    best_region = insights.get("best_region")
+
+    actions = []
+    for index, region in enumerate(regions[:3], start=1):
+        actions.append({
+            "priority": index,
+            "region": region["region"],
+            "risk_score": region["risk_score"],
+            "recommendation": region.get("recommendation", "Maintain standard monitoring."),
+            "alert": region.get("alert", "Stable outlook"),
+        })
+
+    if not actions:
+        actions.append({
+            "priority": 1,
+            "region": "N/A",
+            "risk_score": 0,
+            "recommendation": "Connect data sources to receive actionable agronomic guidance.",
+            "alert": "No data",
+        })
+
+    return {
+        "best_region": best_region,
+        "actions": actions,
+        "summary": f"Best-performing region is {best_region} based on the current predictive score." if best_region and best_region != 'N/A' else "No regional performance data available yet.",
+    }
+
+
 @app.get("/api/pipeline/summary")
 def pipeline_summary():
     """Return a combined operational and predictive summary."""

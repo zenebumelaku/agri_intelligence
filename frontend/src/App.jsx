@@ -19,6 +19,7 @@ export default function App() {
   const { weather, market, cropRisk, production, connected, source, hdfsFiles, hdfsEvents, hdfsSize } = useAgriStream()
   const [selectedRegion, setSelectedRegion] = useState('All')
   const [insights, setInsights] = useState(null)
+  const [recommendations, setRecommendations] = useState([])
 
   useEffect(() => {
     const fetchInsights = async () => {
@@ -31,7 +32,20 @@ export default function App() {
         console.warn('ML insights unavailable', error)
       }
     }
+
+    const fetchRecommendations = async () => {
+      try {
+        const res = await fetch('http://localhost:8001/api/recommendations')
+        if (!res.ok) return
+        const data = await res.json()
+        setRecommendations(data.actions || [])
+      } catch (error) {
+        console.warn('Recommendations unavailable', error)
+      }
+    }
+
     fetchInsights()
+    fetchRecommendations()
   }, [])
 
   const filteredWeather = useMemo(() => {
@@ -132,134 +146,186 @@ export default function App() {
       .slice(-40)
   }, [filteredWeather, filteredMarket, filteredCropRisk, filteredProduction])
 
+  const exportReport = () => {
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      selectedRegion,
+      connected,
+      source,
+      overview,
+      alerts,
+      insights,
+      recommendations,
+      hdfsFiles,
+      hdfsEvents,
+      hdfsSize,
+    }
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `agri-intelligence-report-${selectedRegion.toLowerCase().replace(/\s+/g, '-')}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800/80 bg-slate-950/90 backdrop-blur sticky top-0 z-10">
+      <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-slate-950/85 backdrop-blur-xl">
         <div className="mx-auto max-w-screen-2xl px-4 py-4 md:px-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-2xl shadow-lg shadow-emerald-500/10">🌾</div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-400/20 to-lime-400/5 text-2xl shadow-lg shadow-emerald-500/10">🌾</div>
               <div>
-                <h1 className="text-xl font-bold tracking-tight text-white">Agri Intelligence</h1>
-                <p className="text-xs text-slate-400">Real-time agricultural monitoring</p>
+                <h1 className="text-lg font-bold tracking-tight text-white">Agri<span className="text-emerald-300">Sense</span></h1>
+                <p className="text-[11px] text-slate-500">Agricultural intelligence platform</p>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between xl:justify-end">
-              <div className="flex items-center gap-2 text-sm">
-                <span className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
-                <span className={connected ? 'text-emerald-400' : 'text-amber-400'}>
-                  {connected ? 'Live · Kafka connected' : 'Demo · Mock feed'}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:justify-end">
+              <nav aria-label="Dashboard sections" className="order-2 flex items-center gap-1 sm:order-1">
+                <a href="#overview" className="rounded-lg px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/5 hover:text-white">Overview</a>
+                <a href="#analytics" className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-white/5 hover:text-white">Analytics</a>
+                <a href="#intelligence" className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-white/5 hover:text-white">Intelligence</a>
+              </nav>
+
+              <div className="order-1 flex items-center gap-2 self-start rounded-full border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs sm:order-2 sm:self-auto">
+                <span className={`relative flex h-2 w-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-amber-400'}`}>
+                  <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-50 ${connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                </span>
+                <span className={connected ? 'text-emerald-300' : 'text-amber-300'}>
+                  {connected ? 'Live data' : 'Demo mode'}
                 </span>
                 {source === 'mock' && (
-                  <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-400">
-                    backend offline
-                  </span>
+                  <span className="border-l border-slate-700 pl-2 text-[10px] uppercase tracking-wider text-slate-500">API offline</span>
                 )}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {REGIONS.map((region) => (
-                  <button
-                    key={region}
-                    type="button"
-                    onClick={() => setSelectedRegion(region)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                      selectedRegion === region
-                        ? 'border-emerald-400 bg-emerald-500/10 text-emerald-300'
-                        : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:text-slate-200'
-                    }`}
-                  >
-                    {region}
-                  </button>
-                ))}
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-screen-2xl space-y-6 px-4 py-6 md:px-6">
-        <section className="grid gap-4 xl:grid-cols-[1.5fr_0.8fr]">
-          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 p-5 shadow-2xl shadow-slate-950/40">
+      <main className="mx-auto max-w-screen-2xl space-y-8 px-4 py-6 md:px-6 md:py-8">
+        <section id="overview" className="grid scroll-mt-24 gap-5 xl:grid-cols-[1.45fr_0.85fr]">
+          <div className="relative isolate overflow-hidden rounded-3xl border border-emerald-400/10 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 p-6 shadow-2xl shadow-slate-950/40 md:p-7">
+            <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-28 -z-10 h-80 w-80 rounded-full bg-emerald-400/10 blur-3xl" />
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-300/80">Operational snapshot</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-300/80">Regional intelligence · Ethiopia</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white md:text-3xl">
                   {selectedRegion === 'All' ? 'All regions overview' : `${selectedRegion} focus`}
                 </h2>
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-400">A live view of climate, crop health, markets, and production signals across your selected region.</p>
               </div>
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-300">
+              <span className="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300 sm:inline-flex">
                 {connected ? 'ONLINE' : 'SIMULATED'}
               </span>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Avg temp</p>
-                <p className="mt-2 text-2xl font-bold text-white">{overview.avgTemp}</p>
+            <div className="mt-6 flex flex-col gap-3 border-t border-white/[0.07] pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <label htmlFor="region-filter" className="text-xs font-medium text-slate-400">Region</label>
+              <select
+                id="region-filter"
+                value={selectedRegion}
+                onChange={(event) => setSelectedRegion(event.target.value)}
+                className="min-w-48 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-emerald-400/60 focus:ring-2 focus:ring-emerald-400/10"
+              >
+                {REGIONS.map((region) => <option key={region} value={region}>{region === 'All' ? 'All regions' : region}</option>)}
+              </select>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-4 transition hover:border-white/10">
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">Avg temperature</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{overview.avgTemp}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Across recent readings</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Rainfall</p>
-                <p className="mt-2 text-2xl font-bold text-white">{overview.avgRain}</p>
+              <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-4 transition hover:border-white/10">
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">Rainfall</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{overview.avgRain}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Average precipitation</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Avg price</p>
-                <p className="mt-2 text-2xl font-bold text-white">{overview.avgPrice}</p>
+              <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-4 transition hover:border-white/10">
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">Average price</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{overview.avgPrice}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Market signal</p>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Production</p>
-                <p className="mt-2 text-2xl font-bold text-white">{overview.totalProduction}</p>
+              <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-4 transition hover:border-white/10">
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">Production</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-white">{overview.totalProduction}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Recent reported volume</p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Priority alerts</p>
-            <div className="mt-4 space-y-3">
+          <div className="rounded-3xl border border-slate-800/90 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/20 md:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">Monitoring</p>
+                <h3 className="mt-1 text-base font-semibold text-white">Priority alerts</h3>
+              </div>
+              <button
+                type="button"
+                onClick={exportReport}
+                className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/15 focus:outline-none focus:ring-2 focus:ring-emerald-400/30"
+              >
+                Export
+              </button>
+            </div>
+            <div className="mt-5 space-y-3">
               {alerts.map((alert) => (
-                <div key={alert.title} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        alert.tone === 'red'
-                          ? 'bg-red-400'
-                          : alert.tone === 'orange'
-                            ? 'bg-orange-400'
-                            : alert.tone === 'yellow'
-                              ? 'bg-yellow-400'
-                              : 'bg-emerald-400'
-                      }`}
-                    />
-                    <p className="font-medium text-white">{alert.title}</p>
+                <div key={alert.title} className="flex gap-3 rounded-2xl border border-white/[0.06] bg-slate-950/40 p-4">
+                  <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                    alert.tone === 'red'
+                      ? 'bg-red-400 shadow-[0_0_12px_rgba(248,113,113,0.55)]'
+                      : alert.tone === 'orange'
+                        ? 'bg-orange-400 shadow-[0_0_12px_rgba(251,146,60,0.5)]'
+                        : alert.tone === 'yellow'
+                          ? 'bg-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.5)]'
+                          : 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.5)]'
+                  }`} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-white">{alert.title}</p>
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-400">{alert.detail}</p>
                   </div>
-                  <p className="mt-2 text-sm text-slate-300">{alert.detail}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <section aria-label="Key performance indicators" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <StatCard icon="🌡️" label="Temperature" value={stats.temp} sub={stats.tempSub} color="orange" />
           <StatCard icon="💰" label="Market Price" value={stats.price} sub={stats.priceSub} color="yellow" />
           <StatCard icon="🐛" label="Pest Threat" value={stats.pest} sub={stats.pestSub} color="red" />
           <StatCard icon="🌱" label="Production" value={stats.prod} sub={stats.prodSub} color="green" />
           <StatCard icon="🗄️" label="HDFS Storage" value={`~${(hdfsEvents / 1000).toFixed(1)}k rows`} sub={`${(hdfsSize / 1024 / 1024).toFixed(2)} MB in ${hdfsFiles} files`} color="sky" />
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section id="analytics" className="scroll-mt-24 space-y-4">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-300/70">Field signals</p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Analytics overview</h2>
+            </div>
+            <p className="hidden text-xs text-slate-500 sm:block">Recent observations · {selectedRegion === 'All' ? 'All regions' : selectedRegion}</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <WeatherChart data={filteredWeather} />
           <MarketChart data={filteredMarket} />
-        </div>
+          </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <CropRiskChart data={filteredCropRisk} />
           <ProductionChart data={filteredProduction} />
-        </div>
+          </div>
+        </section>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <section id="intelligence" className="grid scroll-mt-24 grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-3xl border border-slate-800/90 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/20 md:p-6">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Machine learning</p>
@@ -301,14 +367,38 @@ export default function App() {
                 Loading AI insights...
               </div>
             )}
+
+            <div className="mt-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300">Action center</p>
+              <div className="mt-3 space-y-3">
+                {recommendations.length > 0 ? (
+                  recommendations.slice(0, 3).map((item) => (
+                    <div key={`${item.region}-${item.priority}`} className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium text-white">{item.region}</p>
+                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-amber-300">
+                          P{item.priority}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-300">{item.recommendation}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-400">Loading action recommendations...</p>
+                )}
+              </div>
+            </div>
           </div>
 
           <EventFeed events={allEvents} />
-        </div>
+        </section>
       </main>
 
-      <footer className="border-t border-slate-800 py-5 text-center text-xs text-slate-600">
-        Agri Intelligence Dashboard · {source === 'live' ? 'Connected to pipeline_api :8000' : 'Mock mode — start pipeline_api to go live'}
+      <footer className="mt-10 border-t border-white/[0.06] bg-slate-950/50 py-6">
+        <div className="mx-auto flex max-w-screen-2xl flex-col gap-2 px-4 text-center text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between md:px-6 sm:text-left">
+          <span><span className="font-semibold text-slate-300">AgriSense</span> · Agricultural intelligence dashboard</span>
+          <span>{source === 'live' ? 'Connected to pipeline API' : 'Demo data · Start the API to connect live sources'}</span>
+        </div>
       </footer>
     </div>
   )
