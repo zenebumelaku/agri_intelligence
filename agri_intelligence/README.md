@@ -30,9 +30,30 @@ Before running this project, ensure you have the following installed and configu
    pip install -r requirements.txt
    ```
 
+## Project Enhancements
+
+This version adds a more polished dashboard experience for the agricultural data platform, including:
+
+- region filters for focusing on a specific state or sub-region
+- dashboard summary cards with operational KPIs
+- priority alert cards for pest risk, soil moisture, and price spikes
+- improved visual styling and responsive layout for project presentations
+
 ## How to Run
 
-### 1. Start Infrastructure Services
+### 1. Start the Frontend Dashboard
+
+From the `frontend/` directory, install dependencies and launch the dashboard:
+
+```bash
+cd frontend
+npm install
+npm run dev -- --host 0.0.0.0
+```
+
+The dashboard will be available at `http://localhost:5173`.
+
+### 2. Start Infrastructure Services
 
 Make sure your Kafka and HDFS environments are up and running.
 
